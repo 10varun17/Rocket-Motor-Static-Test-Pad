@@ -1,0 +1,201 @@
+// Real time clock, calendar, temperature, humidity data logger using Arduino, DS3231 and DHT22 sensor
+
+#include <SPI.h>              // Include SPI library (needed for the SD card)
+#include <SD.h>               // Include SD library
+
+#include <Wire.h>             // Include Wire library code (needed for I2C protocol devices)
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Data wire is plugged into digital pin 5 on the Arduino
+#define ONE_WIRE_BUS 2 //The parallel wires are connected to D2
+
+// Setup a oneWire instance to communicate with any OneWire device
+OneWire oneWire(ONE_WIRE_BUS);  
+
+// Pass oneWire reference to DallasTemperature library
+DallasTemperature sensors(&oneWire);
+
+int deviceCount = 0;
+
+File dataLog;
+boolean sd_ok = 0;
+char temperature[] = " 00.0";
+char Time[]     = "  :  :  ";
+char Calendar[] = "  /  /20  ";
+byte i, second, minute, hour, date, month, year, previous_second;
+int Temp1, Temp2;
+
+void setup() {
+  // Open serial communications and wait for port to open:
+  Serial.begin(9600);
+  Serial.print("Initializing SD card...");
+  if (!SD.begin())
+    Serial.println("initialization failed!");
+  else {
+    Serial.println("initialization done.");
+    sd_ok = 1;
+  }
+  Wire.begin();                                  // Join i2c bus
+ sensors.begin(); // Start up the library
+   sensors.setResolution(10); //10 bit resolution (0.25°C step)
+    
+  // locate devices on the bus
+  Serial.print("Locating devices...");
+  Serial.print("Found ");
+  deviceCount = sensors.getDeviceCount();
+  Serial.print(deviceCount, DEC);
+  Serial.println(" devices.");
+  Serial.println("");
+  
+  Serial.println("   DATE    |   TIME   | TEMP1 | TEMP2");
+  
+  if(sd_ok) {                                       // If SD card initialization was OK
+    dataLog = SD.open("Logger.txt", FILE_WRITE);    // Open file Logger.txt
+    if(dataLog) {                                   // if the file opened okay, write to it:
+      dataLog.println("   DATE    |   TIME   | TEMP1 | TEMP2");
+      dataLog.close();                              // Close the file
+    }
+  }
+}
+
+void DS3231_display(){
+  // Convert BCD to decimal
+  second = (second >> 4) * 10 + (second & 0x0F);
+  minute = (minute >> 4) * 10 + (minute & 0x0F);
+  hour   = (hour >> 4)   * 10 + (hour & 0x0F);
+  date   = (date >> 4)   * 10 + (date & 0x0F);
+  month  = (month >> 4)  * 10 + (month & 0x0F);
+  year   = (year >> 4)   * 10 + (year & 0x0F);
+  // End conversion
+  Time[7]     = second % 10 + 48;
+  Time[6]     = second / 10 + 48;
+  Time[4]      = minute % 10 + 48;
+  Time[3]      = minute / 10 + 48;
+  Time[1]      = hour   % 10 + 48;
+  Time[0]      = hour   / 10 + 48;
+  Calendar[9] = year   % 10 + 48;
+  Calendar[8] = year   / 10 + 48;
+  Calendar[4]  = month  % 10 + 48;
+  Calendar[3]  = month  / 10 + 48;
+  Calendar[1]  = date   % 10 + 48;
+  Calendar[0]  = date   / 10 + 48;
+}
+
+byte edit(byte x, byte y, byte parameter){
+  char text[3];
+      parameter++;
+      if(i == 0 && parameter > 23)               // If hours > 23 ==> hours = 0
+        parameter = 0;
+      if(i == 1 && parameter > 59)               // If minutes > 59 ==> minutes = 0
+        parameter = 0;
+      if(i == 2 && parameter > 31)               // If date > 31 ==> date = 1
+        parameter = 1;
+      if(i == 3 && parameter > 12)               // If month > 12 ==> month = 1
+        parameter = 1;
+      if(i == 4 && parameter > 99)               // If year > 99 ==> year = 0
+        parameter = 0;
+      sprintf(text,"%02u", parameter);
+      delay(200);                                // Wait 200ms
+    }
+    sprintf(text,"%02u", parameter);
+    if(!digitalRead(B1)){                         // If button (pin #8) is pressed
+      i++;                                       // Increament 'i' for the next parameter
+      return parameter;                          // Return parameter value and exit
+    }
+  }
+}
+
+void loop() {
+  if(!digitalRead(B1)){                           // If button (pin #8) is pressed
+    i = 0;
+    hour   = edit(5, 0, hour);
+    minute = edit(8, 0, minute);
+    date   = edit(5, 1, date);
+    month  = edit(8, 1, month);
+    year   = edit(13, 1, year);
+    // Convert decimal to BCD
+    minute = ((minute / 10) << 4) + (minute % 10);
+    hour = ((hour / 10) << 4) + (hour % 10);
+    date = ((date / 10) << 4) + (date % 10);
+    month = ((month / 10) << 4) + (month % 10);
+    year = ((year / 10) << 4) + (year % 10);
+    // End conversion
+    // Write data to DS3231 RTC
+    Wire.beginTransmission(0x68);               // Start I2C protocol with DS3231 address
+    Wire.write(0);                              // Send register address
+    Wire.write(0);                              // Reset sesonds and start oscillator
+    Wire.write(minute);                         // Write minute
+    Wire.write(hour);                           // Write hour
+    Wire.write(1);                              // Write day (not used)
+    Wire.write(date);                           // Write date
+    Wire.write(month);                          // Write month
+    Wire.write(year);                           // Write year
+    Wire.endTransmission();                     // Stop transmission and release the I2C bus
+    delay(200);                                 // Wait 200ms
+  }
+
+  Wire.beginTransmission(0x68);                 // Start I2C protocol with DS3231 address
+  Wire.write(0);                                // Send register address
+  Wire.endTransmission(false);                  // I2C restart
+  Wire.requestFrom(0x68, 7);                    // Request 7 bytes from DS3231 and release I2C bus at end of reading
+  second = Wire.read();                         // Read seconds from register 0
+  minute = Wire.read();                         // Read minuts from register 1
+  hour   = Wire.read();                         // Read hour from register 2
+  Wire.read();                                  // Read day from register 3 (not used)
+  date   = Wire.read();                         // Read date from register 4
+  month  = Wire.read();                         // Read month from register 5
+  year   = Wire.read();                         // Read year from register 6
+  
+  DS3231_display();                             // Diaplay time & calendar
+  
+  if(previous_second != second){
+    previous_second = second;
+    // Read humidity
+    RH = dht.readHumidity() * 10;
+    //Read temperature in degree Celsius
+    Temp = dht.readTemperature() * 10;
+    if(Temp < 0){
+      temperature[0] = '-';                     // If temperature < 0 put minus sign
+      Temp = abs(Temp);                         // Absolute value of 'Temp'
+    }
+    else
+      temperature[0] = ' ';                     // otherwise (temperature > 0) put space
+    temperature[1]   = (Temp / 100) % 10  + 48;
+    temperature[2]   = (Temp / 10)  % 10  + 48;
+    temperature[4]  =  Temp % 10 + 48;
+    if(RH >= 1000)
+      humidity[0]    = '1';                     // If humidity >= 100.0% put '1' of hundreds
+    else
+      humidity[0]    = ' ';                     // otherwise (humidity < 100) put space
+    humidity[1]      = (RH / 100) % 10 + 48;    
+    humidity[2]      = (RH / 10) % 10 + 48;
+    humidity[4]     =  RH % 10 + 48;
+    lcd.setCursor(6, 2);
+    lcd.print(temperature);
+    lcd.setCursor(6, 3);
+    lcd.print(humidity);
+    // Send data to Arduino IDE serial monitor
+    Serial.print(Calendar);
+    Serial.print(" | ");
+    Serial.print(Time);
+    Serial.print(" |   ");
+    Serial.print(temperature);
+    Serial.print("°C   |  ");
+    Serial.println(humidity);
+    if(sd_ok) {                                       // If SD card initialization was OK
+      dataLog = SD.open("Logger.txt", FILE_WRITE);    // Open file Logger.txt
+      if(dataLog) {                                   // if the file opened okay, write to it:
+        dataLog.print(Calendar);
+        dataLog.print(" | ");
+        dataLog.print(Time);
+        dataLog.print(" |   ");
+        dataLog.print(temperature);
+        dataLog.print("°C   | ");
+        dataLog.println(humidity);
+        dataLog.close();                              // Close the file
+      }
+    }
+  }
+  delay(50);                                          // Wait 50ms
+}
