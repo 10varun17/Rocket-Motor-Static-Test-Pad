@@ -1,1 +1,6 @@
 # Rocket-Motor-Static-Test-Pad
+</br>
+This project includes the work that I did during my internship at the Space Technology and Aeronautical Rocketry (STAR) Labs, India in 2022. The objective of my task in the internship was to design a Rocket Motor Static Test Pad for testing and acquiring the required data for the performance analysis of the high powered rocket motors. It is not an individual project. My project had two departments: Avionics and Mechanical Design. There were two members in the Mechanical Design Department and one member (that's me!) in the Avionics Department. I have added my internship report to this repo. Please go through the report to understand the work I did during the internship. The report is an individual report, but during the internship, I was told to put ~80% of my work (avionics) and 20% of my teammates' work in the report. It means that I do not have any contributions to the CAD designs that are presented in my report. My work in the project includes the Avionics work only.</br>
+
+<h2>Notes</h2></br>
+You need to have the softwares Proteus and Eagle EDA to open the files in the Circuit Design and PCB design sub-directories. However, I have put some images and pdfs to show my circuit and PCB designs.
